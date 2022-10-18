@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ymal to sh</title>
+</head>
+<body>
+    <div>
+        <label for="inputFile">請上傳ymal檔案</label>
+        <input type="file" name="inputFile" id="inputFile">
+    </div>
+    <br>
+    <div>
+        <textarea name="outputFile" cols="100" rows="60" id="outputFile"></textarea>
+    </div>
+</body>
+<script>
+let fileUploader = document.getElementById("inputFile");
+let outputFile = document.getElementById("outputFile");
+//用來讀取file資料的FileReader
+let fileReader = new FileReader();
+
+//監控#fileUploader的值變化
+fileUploader.addEventListener("change", function(e) {
+    let file =fileUploader.files[0];
+    fileReader.readAsText(file)
+    fileReader.addEventListener('load', function() {
+        const result = textToBashEnvText(this.result)
+        outputFile.value = result
+    });
+}, false);
+
+let textToBashEnvText = function(text){
+    let result = text
+    result = splitNewline(result)
+    result = trimline(result)
+    result = filterCommentLine(result)
+    result = fixedMultiline(result)
+    result = splitFirstComma(result)
+    result = removeLowercaseKey(result)
+    result = combineEnvText(result)
+    return result
+}
+
+/* 切開換行 */
+let splitNewline = function(text){
+    return text.split('\n')
+}
+/* 移除開頭空格 */
+let trimline = function(arr){
+    return arr.map(item=>item.trim())
+}
+/* 移除註解行 */
+let filterCommentLine = function(arr){
+    return arr.filter(item=>item.length>0&&item[0]!=='#')
+}
+/* 修正多行字串 */
+let fixedMultiline = function(arr){
+    const newArr = []
+    const stack = []
+    let isCombineMulti = false
+    for (let i = 0; i < arr.length; i++) {
+        const item = arr[i];
+        if(isCombineMulti){
+            if(item==='{'||item==='['){
+                stack.push(item)
+            }
+            if(item==='}'&&stack[stack.length-1]==='{'){
+                stack.pop()
+            }
+            if(item===']'&&stack[stack.length-1]==='['){
+                stack.pop()
+            }
+            if(stack.length === 0){
+                isCombineMulti = false
+            }
+            newArr[newArr.length-1]+=item
+        }else{
+            if(item.includes('|-')){
+                isCombineMulti = true
+                newArr.push(item.replace('|-','\n'))
+            }else{
+                newArr.push(item)
+            }
+        }
+    }
+    return newArr
+}
+/* 根據第一位冒號做切割 */
+let splitFirstComma = function(arr){
+    let split_at_index = function(value, index)
+    {
+        return [value.substring(0, index).trim(),value.substring(index+1).trim()];
+    }
+    return arr.map(line=>{
+        if(!line.includes(':')){
+            return
+        }
+        const index = line.indexOf(':')
+        return split_at_index(line,index)
+    })
+}
+/* 移除key為小寫 */
+let removeLowercaseKey = function(arr){
+    return arr.filter(([key,value])=>key===key.toUpperCase())
+}
+/* 合成環境變數字串 */
+let combineEnvText = function(arr){
+    let text = ''
+    for (let i = 0; i < arr.length; i++) {
+        const subArr = arr[i];
+        if(subArr && subArr.length === 2){
+            let key = subArr[0],value = subArr[1]
+            if(value[0]!=='"'&&value[0]!=="'"){
+                value = "'"+value+"'"
+            }
+            text+='export '+key+'='+value+'\n'
+        }else{
+        }
+    }
+    return text
+}
+</script>
+</html>
